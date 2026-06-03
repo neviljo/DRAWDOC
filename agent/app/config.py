@@ -8,8 +8,11 @@ class Settings(BaseSettings):
     google_api_key: str = ""
     cors_origins: list[str] = ["http://localhost:3000"]
 
-    class Config:
-        env_file = ".env"
+    model_config = {
+        "env_file": ".env",
+        "env_prefix": "AGENT_",
+        "env_nested_delimiter": "__",
+    }
 
 
 settings = Settings()
