@@ -1,17 +1,32 @@
 from pydantic_settings import BaseSettings
+from pydantic import Field
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+psycopg://drawdoc:drawdoc@localhost:5432/drawdoc"
-    redis_url: str = "redis://localhost:6379"
-    groq_api_key: str = ""
-    google_api_key: str = ""
-    cors_origins: list[str] = ["http://localhost:3000"]
+    database_url: str = Field(
+        default="postgresql+psycopg://drawdoc:drawdoc@localhost:5432/drawdoc",
+        validation_alias="AGENT_DATABASE_URL",
+    )
+    redis_url: str = Field(
+        default="redis://localhost:6379",
+        validation_alias="AGENT_REDIS_URL",
+    )
+    groq_api_key: str = Field(
+        default="",
+        validation_alias="GROQ_API_KEY",
+    )
+    google_api_key: str = Field(
+        default="",
+        validation_alias="GOOGLE_API_KEY",
+    )
+    cors_origins: list[str] = Field(
+        default=["http://localhost:3000"],
+        validation_alias="AGENT_CORS_ORIGINS",
+    )
 
     model_config = {
         "env_file": ".env",
-        "env_prefix": "AGENT_",
-        "env_nested_delimiter": "__",
+        "extra": "ignore",
     }
 
 
