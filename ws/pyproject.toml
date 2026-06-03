@@ -1,0 +1,15 @@
+[project]
+name = "drawdoc-ws"
+version = "0.1.0"
+description = "DrawDoc Yjs WebSocket sync server — pycrdt"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pycrdt>=0.12.0",
+    "pycrdt-websocket>=0.16.2",
+    "redis[hiredis]>=5.2.0",
+    "uvicorn[standard]>=0.34.0",
+]
+
+[project.scripts]
+drawdoc-ws = "app.main:main"
