@@ -1,5 +1,4 @@
 from pydantic_settings import BaseSettings
-from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -9,19 +8,16 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: str = "http://localhost:3000"
 
     model_config = {
         "env_file": ".env",
         "extra": "ignore",
     }
 
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def split_cors(cls, v):
-        if isinstance(v, str):
-            return [o.strip() for o in v.split(",") if o.strip()]
-        return v
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 settings = Settings()

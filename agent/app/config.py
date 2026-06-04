@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from pydantic import Field, field_validator
+from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -19,8 +19,8 @@ class Settings(BaseSettings):
         default="",
         validation_alias="GOOGLE_API_KEY",
     )
-    cors_origins: list[str] = Field(
-        default=["http://localhost:3000"],
+    cors_origins: str = Field(
+        default="http://localhost:3000",
         validation_alias="AGENT_CORS_ORIGINS",
     )
 
@@ -29,12 +29,9 @@ class Settings(BaseSettings):
         "extra": "ignore",
     }
 
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def split_cors(cls, v):
-        if isinstance(v, str):
-            return [o.strip() for o in v.split(",") if o.strip()]
-        return v
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 settings = Settings()
