@@ -10,4 +10,4 @@ COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 COPY ws/app /app/app
 EXPOSE 1234
-CMD ["uv", "run", "python", "-m", "app.main"]
+CMD ["python", "-m", "app.main"]
