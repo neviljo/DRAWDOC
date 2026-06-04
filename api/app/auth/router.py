@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from passlib.hash import bcrypt
+import bcrypt
 from app.shared.database import get_db
 from app.models import User
 from app.auth.jwt import create_access_token, create_refresh_token, decode_token, get_current_user
@@ -33,7 +33,7 @@ async def register(body: RegisterBody, db: AsyncSession = Depends(get_db), respo
         id=uuid.uuid4(),
         email=body.email,
         display_name=body.display_name,
-        password_hash=bcrypt.hash(body.password),
+        password_hash=bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode(),
     )
     db.add(user)
     await db.commit()
@@ -49,7 +49,7 @@ async def register(body: RegisterBody, db: AsyncSession = Depends(get_db), respo
 async def login(body: LoginBody, db: AsyncSession = Depends(get_db), response: Response = None):
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
-    if not user or not user.password_hash or not bcrypt.verify(body.password, user.password_hash):
+    if not user or not user.password_hash or not bcrypt.checkpw(body.password.encode(), user.password_hash.encode()):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
     access_token = create_access_token(user.id)
