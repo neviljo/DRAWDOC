@@ -11,7 +11,7 @@ const blockNoteStyles = `
     height: 100% !important;
     min-height: 0 !important;
   }
-`;
+`; 
 
 interface Props {
   doc: Y.Doc;
@@ -31,9 +31,11 @@ export default function BlockNoteEditor({ doc, provider }: Props) {
   });
 
   return (
-    <div className="h-full p-6" style={{ minHeight: 0 }}>
+    <div className="relative h-full" style={{ minHeight: 0 }}>
       <style>{blockNoteStyles}</style>
-      <BlockNoteViewRaw editor={editor} theme="dark" />
+      <div className="absolute inset-0 overflow-y-auto">
+        <BlockNoteViewRaw editor={editor} theme="dark" />
+      </div>
     </div>
   );
 }
