@@ -12,4 +12,4 @@ COPY api/app /app/app
 COPY api/alembic /app/alembic
 COPY api/alembic/alembic.ini /app/alembic.ini
 EXPOSE 8000
-CMD uv run python migrate.py && uvicorn app.main:app --host 0.0.0.0 --port 8000
+CMD python migrate.py && uvicorn app.main:app --host 0.0.0.0 --port 8000
