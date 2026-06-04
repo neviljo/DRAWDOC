@@ -1,7 +1,9 @@
 import os
+import asyncio
 import logging
+from contextlib import asynccontextmanager
 from pycrdt import Doc, Map, Text
-from pycrdt.websocket import WebsocketServer, ASGIServer, YRoom
+from pycrdt.websocket import WebsocketServer, ASGIServer
 import redis.asyncio as aioredis
 
 logging.basicConfig(level=logging.INFO)
@@ -13,37 +15,40 @@ HOST = os.getenv("WS_HOST", "0.0.0.0")
 PORT = int(os.getenv("WS_PORT", "1234"))
 
 
-class DrawDocRoom(YRoom):
-    def __init__(self, room_name: str, redis: aioredis.Redis):
-        super().__init__(ready=True)
-        self.room_name = room_name
-        self.redis = redis
+@asynccontextmanager
+async def redis_provider(doc: Doc, redis: aioredis.Redis, path: str):
+    redis_key = f"yjs:{path}"
 
-    async def _load_snapshot(self):
-        data = await self.redis.get(f"yjs:{self.room_name}")
-        if data:
-            doc = Doc()
-            doc.apply_update(bytes(data))
-            self.doc = doc
-            logger.info("Loaded snapshot for %s", self.room_name)
-        else:
-            self.doc["content"] = Map()
-            self.doc["content"]["blocknote"] = Text()
-            self.doc["content"]["excalidraw"] = Map()
-            logger.info("Created new doc for %s", self.room_name)
+    data = await redis.get(redis_key)
+    if data:
+        doc.apply_update(bytes(data))
+        logger.info("Loaded snapshot for %s", path)
+    else:
+        doc["content"] = Map()
+        doc["content"]["blocknote"] = Text()
+        doc["content"]["excalidraw"] = Map()
+        logger.info("Created new doc for %s", path)
 
-    async def _save_snapshot(self):
-        if self.doc is None:
-            return
-        update = self.doc.get_update()
-        await self.redis.set(f"yjs:{self.room_name}", bytes(update))
-        logger.debug("Saved snapshot for %s (%d bytes)", self.room_name, len(update))
+    async def _periodic_save():
+        while True:
+            await asyncio.sleep(SNAPSHOT_INTERVAL)
+            update = doc.get_update()
+            await redis.set(redis_key, bytes(update))
+            logger.debug("Saved snapshot for %s (%d bytes)", path, len(update))
 
-    async def on_connect(self):
-        await self._load_snapshot()
+    save_task = asyncio.create_task(_periodic_save())
 
-    async def on_disconnect(self):
-        await self._save_snapshot()
+    try:
+        yield
+    finally:
+        save_task.cancel()
+        try:
+            await save_task
+        except asyncio.CancelledError:
+            pass
+        update = doc.get_update()
+        await redis.set(redis_key, bytes(update))
+        logger.info("Saved final snapshot for %s (%d bytes)", path, len(update))
 
 
 async def main():
@@ -51,12 +56,8 @@ async def main():
     await redis.ping()
     logger.info("Connected to Redis at %s", REDIS_URL)
 
-    rooms: dict[str, DrawDocRoom] = {}
-
-    def provider_factory(room_name: str) -> DrawDocRoom:
-        if room_name not in rooms:
-            rooms[room_name] = DrawDocRoom(room_name, redis)
-        return rooms[room_name]
+    def provider_factory(doc=None, log=None, path=None):
+        return redis_provider(doc, redis, path)
 
     ws_server = WebsocketServer(
         rooms_ready=True,
