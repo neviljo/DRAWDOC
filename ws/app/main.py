@@ -65,7 +65,7 @@ async def main():
     )
 
     async with ws_server:
-        asgi_app = ASGIServer(ws_server, async_mode=True)
+        asgi_app = ASGIServer(ws_server)
         import uvicorn
         config = uvicorn.Config(asgi_app, host=HOST, port=PORT, log_level="info")
         server = uvicorn.Server(config)
