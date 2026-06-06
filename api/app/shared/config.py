@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
     cors_origins: str = "http://localhost:3000"
+    cookie_secure: bool = False
+    cookie_samesite: str = "lax"
 
     model_config = {
         "env_file": ".env",

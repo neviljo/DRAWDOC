@@ -8,6 +8,7 @@ import bcrypt
 from app.shared.database import get_db
 from app.models import User
 from app.auth.jwt import create_access_token, create_refresh_token, decode_token, get_current_user
+from app.shared.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -40,7 +41,7 @@ async def register(body: RegisterBody, db: AsyncSession = Depends(get_db), respo
 
     access_token = create_access_token(user.id)
     refresh_token = create_refresh_token(user.id)
-    response.set_cookie("refresh_token", refresh_token, httponly=True, secure=False, samesite="lax", max_age=7 * 86400, path="/auth")
+    response.set_cookie("refresh_token", refresh_token, httponly=True, secure=settings.cookie_secure, samesite=settings.cookie_samesite, max_age=7 * 86400, path="/auth")
 
     return {"user": {"id": str(user.id), "email": user.email, "display_name": user.display_name}, "access_token": access_token}
 
@@ -54,7 +55,7 @@ async def login(body: LoginBody, db: AsyncSession = Depends(get_db), response: R
 
     access_token = create_access_token(user.id)
     refresh_token = create_refresh_token(user.id)
-    response.set_cookie("refresh_token", refresh_token, httponly=True, secure=False, samesite="lax", max_age=7 * 86400, path="/auth")
+    response.set_cookie("refresh_token", refresh_token, httponly=True, secure=settings.cookie_secure, samesite=settings.cookie_samesite, max_age=7 * 86400, path="/auth")
 
     return {"user": {"id": str(user.id), "email": user.email, "display_name": user.display_name}, "access_token": access_token}
 
@@ -70,7 +71,7 @@ async def refresh(request: Request, response: Response):
 
     new_access = create_access_token(uuid.UUID(payload["sub"]))
     new_refresh = create_refresh_token(uuid.UUID(payload["sub"]))
-    response.set_cookie("refresh_token", new_refresh, httponly=True, secure=False, samesite="lax", max_age=7 * 86400, path="/auth")
+    response.set_cookie("refresh_token", new_refresh, httponly=True, secure=settings.cookie_secure, samesite=settings.cookie_samesite, max_age=7 * 86400, path="/auth")
 
     return {"access_token": new_access}
 
