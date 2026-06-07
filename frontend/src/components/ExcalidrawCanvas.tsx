@@ -15,9 +15,7 @@ const ELEMENTS_MAP_KEY = "excalidraw";
 export default function ExcalidrawCanvas({ doc }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const syncingRef = useRef(false);
-  const mountedRef = useRef(false);
-  const stableRef = useRef(false);
-  const initialLoadDoneRef = useRef(false);
+  const onChangeReadyRef = useRef(false);
 
   function readElements() {
     const map = doc.getMap(ELEMENTS_MAP_KEY);
@@ -26,15 +24,13 @@ export default function ExcalidrawCanvas({ doc }: Props) {
     );
   }
 
-  function applySyncedElements() {
+  function loadInitialScene() {
     const api = apiRef.current;
     if (!api) return;
-    if (initialLoadDoneRef.current) return;
     const elements = readElements();
     if (elements.length > 0) {
       api.updateScene({ elements: elements as any });
     }
-    initialLoadDoneRef.current = true;
   }
 
   useEffect(() => {
@@ -52,9 +48,7 @@ export default function ExcalidrawCanvas({ doc }: Props) {
 
   const handleChange = useCallback(
     (elements: readonly any[], _state: any) => {
-      if (!stableRef.current) return;
-      if (!mountedRef.current) return;
-      if (!initialLoadDoneRef.current) return;
+      if (!onChangeReadyRef.current) return;
       const map = doc.getMap(ELEMENTS_MAP_KEY);
       syncingRef.current = true;
 
@@ -75,19 +69,14 @@ export default function ExcalidrawCanvas({ doc }: Props) {
     [doc]
   );
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
-
   return (
     <div className="h-full w-full">
       <Excalidraw
         excalidrawAPI={(api) => {
           apiRef.current = api;
-          applySyncedElements();
+          loadInitialScene();
           requestAnimationFrame(() => {
-            requestAnimationFrame(() => { stableRef.current = true; });
+            requestAnimationFrame(() => { onChangeReadyRef.current = true; });
           });
         }}
         onChange={handleChange}
