@@ -22,38 +22,18 @@ export default function Editor({ doc, provider, connectionStatus }: EditorProps)
   }, []);
 
   useEffect(() => {
+    console.log("[Editor] deps changed", { phase, doc: !!doc, prov: !!provider, status: connectionStatus });
     if (doc && provider && connectionStatus === "connected") setPhase("show");
   }, [doc, provider, connectionStatus]);
 
   const show = phase === "show" && doc && provider;
-
-  if (!show) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-surface-950">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative w-10 h-10">
-            <div className="absolute inset-0 rounded-full border-2 border-surface-700" />
-            <div className="absolute inset-0 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-          </div>
-          <p className="text-sm text-surface-400">
-            {connectionStatus === "disconnected"
-              ? "Reconnecting..."
-              : phase === "warming"
-                ? "Server is waking up — may take up to a minute"
-                : "Connecting to document..."}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  console.log("[Editor] render", { show, phase, doc: !!doc, prov: !!provider, status: connectionStatus });
 
   return (
-    <div className="flex-1 flex">
-      <div className="flex-1 flex items-center justify-center bg-red-900 text-white text-lg font-bold">
-        BLOCKNOTE
-      </div>
-      <div className="flex-1 flex items-center justify-center bg-blue-900 text-white text-lg font-bold">
-        EXCALIDRAW
+    <div className="flex-1 flex items-center justify-center bg-red-500">
+      <div className="text-center text-white p-8">
+        <p className="text-2xl font-bold">EDITOR MOUNTED</p>
+        <p className="text-sm mt-2">show: {String(show)} phase: {phase} doc: {String(!!doc)} prov: {String(!!provider)} status: {connectionStatus}</p>
       </div>
     </div>
   );
