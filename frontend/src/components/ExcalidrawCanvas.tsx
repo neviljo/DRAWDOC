@@ -16,7 +16,7 @@ export default function ExcalidrawCanvas({ doc }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const syncingRef = useRef(false);
   const mountedRef = useRef(false);
-  const initialLoadRef = useRef(true);
+  const onChangeCountRef = useRef(0);
 
   function readElements() {
     const map = doc.getMap(ELEMENTS_MAP_KEY);
@@ -45,6 +45,8 @@ export default function ExcalidrawCanvas({ doc }: Props) {
 
   const handleChange = useCallback(
     (elements: readonly any[], _state: any) => {
+      onChangeCountRef.current++;
+      if (onChangeCountRef.current === 1) return;
       if (!mountedRef.current) return;
       const map = doc.getMap(ELEMENTS_MAP_KEY);
       syncingRef.current = true;
@@ -54,16 +56,13 @@ export default function ExcalidrawCanvas({ doc }: Props) {
         for (const [id, el] of incoming) {
           map.set(id, el);
         }
-        if (!initialLoadRef.current) {
-          for (const [id] of map) {
-            if (!incoming.has(id)) {
-              map.delete(id);
-            }
+        for (const [id] of map) {
+          if (!incoming.has(id)) {
+            map.delete(id);
           }
         }
       });
 
-      initialLoadRef.current = false;
       syncingRef.current = false;
     },
     [doc]
