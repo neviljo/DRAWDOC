@@ -15,7 +15,7 @@ interface EditorProps {
 }
 
 const MIN_PCT = 20;
-const MAX_PCT = 80;
+const MAX_PCT = 60;
 
 export default function Editor({ doc, provider, connectionStatus, viewMode }: EditorProps) {
   const [warming, setWarming] = useState(false);
