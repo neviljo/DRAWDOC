@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import type * as Y from "yjs";
 import type { WebsocketProvider } from "y-websocket";
 import type { ConnectionStatus } from "../hooks/use-yjs";
+import BlockNoteEditor from "./BlockNoteEditor";
+import ExcalidrawCanvas from "./ExcalidrawCanvas";
+import ErrorBoundary from "./ErrorBoundary";
 
 interface EditorProps {
   doc: Y.Doc | null;
@@ -10,27 +13,46 @@ interface EditorProps {
 }
 
 export default function Editor({ doc, provider, connectionStatus }: EditorProps) {
-  const [phase, setPhase] = useState<"loading" | "warming" | "show">("loading");
+  const [warming, setWarming] = useState(false);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase("warming"), 5000);
-    const t2 = setTimeout(() => setPhase("show"), 10000);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    const t = setTimeout(() => setWarming(true), 15000);
+    return () => clearTimeout(t);
   }, []);
 
-  useEffect(() => {
-    console.log("[Editor] deps changed", { phase, doc: !!doc, prov: !!provider, status: connectionStatus });
-    if (doc && provider && connectionStatus === "connected") setPhase("show");
-  }, [doc, provider, connectionStatus]);
+  const show = doc && provider && connectionStatus === "connected";
 
-  const show = phase === "show" && doc && provider;
-  console.log("[Editor] render", { show, phase, doc: !!doc, prov: !!provider, status: connectionStatus });
+  if (!show) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-surface-950">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative w-10 h-10">
+            <div className="absolute inset-0 rounded-full border-2 border-surface-700" />
+            <div className="absolute inset-0 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+          </div>
+          <p className="text-sm text-surface-400">
+            {connectionStatus === "disconnected"
+              ? "Reconnecting..."
+              : warming
+                ? "Server is waking up — may take up to a minute"
+                : "Connecting to document..."}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex-1 flex items-center justify-center bg-red-500">
-      <div className="text-center text-white p-8">
-        <p className="text-2xl font-bold">EDITOR MOUNTED</p>
-        <p className="text-sm mt-2">show: {String(show)} phase: {phase} doc: {String(!!doc)} prov: {String(!!provider)} status: {connectionStatus}</p>
+    <div className="flex-1 flex divide-x divide-surface-800">
+      <div className="flex-1 min-w-0">
+        <ErrorBoundary>
+          <BlockNoteEditor doc={doc} provider={provider} />
+        </ErrorBoundary>
+      </div>
+      <div className="flex-1 min-w-0">
+        <ErrorBoundary>
+          <ExcalidrawCanvas doc={doc} provider={provider} />
+        </ErrorBoundary>
       </div>
     </div>
   );
