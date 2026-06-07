@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
@@ -15,7 +15,12 @@ const ELEMENTS_MAP_KEY = "excalidraw";
 export default function ExcalidrawCanvas({ doc }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const syncingRef = useRef(false);
-  const initialSyncRef = useRef(false);
+
+  const [initialData] = useState(() => {
+    const map = doc.getMap(ELEMENTS_MAP_KEY);
+    const elements = Array.from(map.values()) as any[];
+    return elements.length > 0 ? { elements } : undefined;
+  });
 
   useEffect(() => {
     const map = doc.getMap(ELEMENTS_MAP_KEY);
@@ -55,17 +60,8 @@ export default function ExcalidrawCanvas({ doc }: Props) {
   return (
     <div className="h-full w-full">
       <Excalidraw
-        excalidrawAPI={(api) => {
-          apiRef.current = api;
-          if (!initialSyncRef.current) {
-            initialSyncRef.current = true;
-            const map = doc.getMap(ELEMENTS_MAP_KEY);
-            const elements = Array.from(map.values());
-            if (elements.length > 0) {
-              api.updateScene({ elements: elements as any });
-            }
-          }
-        }}
+        excalidrawAPI={(api) => { apiRef.current = api; }}
+        initialData={initialData}
         onChange={handleChange}
         theme="dark"
         UIOptions={{
