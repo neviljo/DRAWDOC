@@ -12,7 +12,6 @@ export function useYjs(docId: string | undefined) {
   const providerRef = useRef<WebsocketProvider | null>(null);
   const user = useAuthStore((s) => s.user);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connecting");
-  const [synced, setSynced] = useState(false);
 
   useEffect(() => {
     if (!docId) return;
@@ -27,7 +26,6 @@ export function useYjs(docId: string | undefined) {
     providerRef.current = provider;
 
     setConnectionStatus("connecting");
-    setSynced(false);
 
     const onStatus = (event: { status: string }) => {
       if (event.status === "connected") setConnectionStatus("connected");
@@ -35,9 +33,6 @@ export function useYjs(docId: string | undefined) {
       else setConnectionStatus("disconnected");
     };
     provider.on("status", onStatus);
-
-    const onSync = (isSynced: boolean) => setSynced(isSynced);
-    provider.on("sync", onSync);
 
     if (user) {
       provider.awareness.setLocalStateField("user", {
@@ -50,7 +45,6 @@ export function useYjs(docId: string | undefined) {
 
     return () => {
       provider.off("status", onStatus);
-      provider.off("sync", onSync);
       provider.destroy();
       doc.destroy();
       docRef.current = null;
@@ -66,7 +60,6 @@ export function useYjs(docId: string | undefined) {
     doc: docRef.current,
     provider: providerRef.current,
     connectionStatus,
-    synced,
     getAwareness,
   };
 }

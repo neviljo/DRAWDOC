@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type * as Y from "yjs";
 import type { WebsocketProvider } from "y-websocket";
 import type { ConnectionStatus } from "../hooks/use-yjs";
@@ -8,11 +9,19 @@ interface EditorProps {
   doc: Y.Doc | null;
   provider: WebsocketProvider | null;
   connectionStatus: ConnectionStatus;
-  synced: boolean;
 }
 
-export default function Editor({ doc, provider, connectionStatus, synced }: EditorProps) {
-  if (!doc || !provider || connectionStatus !== "connected" || !synced) {
+export default function Editor({ doc, provider, connectionStatus }: EditorProps) {
+  const [minDone, setMinDone] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setMinDone(true), 2000);
+    return () => clearTimeout(t);
+  }, []);
+
+  const ready = doc && provider && connectionStatus === "connected";
+
+  if (!ready || !minDone) {
     return (
       <div className="flex-1 flex items-center justify-center bg-surface-950">
         <div className="flex flex-col items-center gap-4">
