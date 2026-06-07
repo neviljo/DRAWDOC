@@ -12,28 +12,32 @@ interface EditorProps {
 }
 
 export default function Editor({ doc, provider, connectionStatus }: EditorProps) {
-  const [minDone, setMinDone] = useState(false);
-  const [forceShow, setForceShow] = useState(false);
+  const [phase, setPhase] = useState<"loading" | "warming" | "show">("loading");
 
   useEffect(() => {
-    const t1 = setTimeout(() => setMinDone(true), 2000);
-    const t2 = setTimeout(() => setForceShow(true), 15000);
+    const t1 = setTimeout(() => setPhase("warming"), 5000);
+    const t2 = setTimeout(() => setPhase("show"), 10000);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
-  const show = (doc && provider && connectionStatus === "connected" && minDone)
-            || (doc && provider && forceShow);
+  useEffect(() => {
+    if (doc && provider && connectionStatus === "connected") setPhase("show");
+  }, [doc, provider, connectionStatus]);
 
-  return show ? (
-    <div className="flex-1 flex divide-x divide-surface-800">
-      <div className="flex-1 min-w-0">
-        <BlockNoteEditor doc={doc} provider={provider} />
+  if (phase === "show" && doc && provider) {
+    return (
+      <div className="flex-1 flex divide-x divide-surface-800">
+        <div className="flex-1 min-w-0">
+          <BlockNoteEditor doc={doc} provider={provider} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <ExcalidrawCanvas doc={doc} provider={provider} />
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <ExcalidrawCanvas doc={doc} provider={provider} />
-      </div>
-    </div>
-  ) : (
+    );
+  }
+
+  return (
     <div className="flex-1 flex items-center justify-center bg-surface-950">
       <div className="flex flex-col items-center gap-4">
         <div className="relative w-10 h-10">
@@ -42,8 +46,10 @@ export default function Editor({ doc, provider, connectionStatus }: EditorProps)
         </div>
         <p className="text-sm text-surface-400">
           {connectionStatus === "disconnected"
-            ? "Reconnecting to document..."
-            : "Connecting to document..."}
+            ? "Reconnecting..."
+            : phase === "warming"
+              ? "Server is waking up — may take up to a minute"
+              : "Connecting to document..."}
         </p>
       </div>
     </div>

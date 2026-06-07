@@ -28,6 +28,7 @@ export function useYjs(docId: string | undefined) {
     setConnectionStatus("connecting");
 
     const onStatus = (event: { status: string }) => {
+      console.log("[useYjs] status:", event.status, "docId:", docId);
       if (event.status === "connected") setConnectionStatus("connected");
       else if (event.status === "connecting") setConnectionStatus("connecting");
       else setConnectionStatus("disconnected");
