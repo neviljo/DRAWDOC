@@ -8,10 +8,11 @@ interface EditorProps {
   doc: Y.Doc | null;
   provider: WebsocketProvider | null;
   connectionStatus: ConnectionStatus;
+  synced: boolean;
 }
 
-export default function Editor({ doc, provider, connectionStatus }: EditorProps) {
-  if (!doc || !provider || connectionStatus !== "connected") {
+export default function Editor({ doc, provider, connectionStatus, synced }: EditorProps) {
+  if (!doc || !provider || connectionStatus !== "connected" || !synced) {
     return (
       <div className="flex-1 flex items-center justify-center bg-surface-950">
         <div className="flex flex-col items-center gap-4">

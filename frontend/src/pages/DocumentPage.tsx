@@ -10,7 +10,7 @@ import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 
 export default function DocumentPage() {
   const { docId } = useParams<{ docId: string }>();
-  const { doc, provider, connectionStatus } = useYjs(docId);
+  const { doc, provider, connectionStatus, synced } = useYjs(docId);
   const { mode, cycle } = useViewModeStore();
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -89,7 +89,7 @@ export default function DocumentPage() {
             <>
               {mode !== "diagram" && (
                 <div className={mode === "text" ? "flex-1" : "flex-1 border-r border-surface-800"}>
-                  <Editor doc={doc} provider={provider} connectionStatus={connectionStatus} />
+                  <Editor doc={doc} provider={provider} connectionStatus={connectionStatus} synced={synced} />
                 </div>
               )}
             </>
