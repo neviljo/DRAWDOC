@@ -4,6 +4,7 @@ import type { WebsocketProvider } from "y-websocket";
 import type { ConnectionStatus } from "../hooks/use-yjs";
 import BlockNoteEditor from "./BlockNoteEditor";
 import ExcalidrawCanvas from "./ExcalidrawCanvas";
+import ErrorBoundary from "./ErrorBoundary";
 
 interface EditorProps {
   doc: Y.Doc | null;
@@ -28,10 +29,14 @@ export default function Editor({ doc, provider, connectionStatus }: EditorProps)
     return (
       <div className="flex-1 flex divide-x divide-surface-800">
         <div className="flex-1 min-w-0">
-          <BlockNoteEditor doc={doc} provider={provider} />
+          <ErrorBoundary>
+            <BlockNoteEditor doc={doc} provider={provider} />
+          </ErrorBoundary>
         </div>
         <div className="flex-1 min-w-0">
-          <ExcalidrawCanvas doc={doc} provider={provider} />
+          <ErrorBoundary>
+            <ExcalidrawCanvas doc={doc} provider={provider} />
+          </ErrorBoundary>
         </div>
       </div>
     );
