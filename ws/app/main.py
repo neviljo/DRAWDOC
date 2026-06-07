@@ -12,7 +12,7 @@ logger = logging.getLogger("drawdoc-ws")
 REDIS_URL = os.getenv("WS_REDIS_URL", "redis://localhost:6379")
 SNAPSHOT_INTERVAL = int(os.getenv("WS_SNAPSHOT_INTERVAL", "30"))
 HOST = os.getenv("WS_HOST", "0.0.0.0")
-PORT = int(os.getenv("WS_PORT", "1234"))
+PORT = int(os.getenv("WS_PORT") or os.getenv("PORT") or "1234")
 
 
 @asynccontextmanager
