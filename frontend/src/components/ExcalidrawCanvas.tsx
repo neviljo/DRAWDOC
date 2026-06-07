@@ -15,10 +15,17 @@ const ELEMENTS_MAP_KEY = "excalidraw";
 export default function ExcalidrawCanvas({ doc }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const syncingRef = useRef(false);
+  const mountedRef = useRef(false);
+
+  function readElements() {
+    const map = doc.getMap(ELEMENTS_MAP_KEY);
+    return Array.from(map.values()).map((el: any) =>
+      typeof el?.toJSON === "function" ? el.toJSON() : el
+    );
+  }
 
   const [initialData] = useState(() => {
-    const map = doc.getMap(ELEMENTS_MAP_KEY);
-    const elements = Array.from(map.values()) as any[];
+    const elements = readElements();
     return elements.length > 0 ? { elements } : undefined;
   });
 
@@ -27,7 +34,7 @@ export default function ExcalidrawCanvas({ doc }: Props) {
 
     const handleSync = () => {
       if (syncingRef.current) return;
-      const elements = Array.from(map.values());
+      const elements = readElements();
       apiRef.current?.updateScene({ elements: elements as any });
     };
 
@@ -37,6 +44,7 @@ export default function ExcalidrawCanvas({ doc }: Props) {
 
   const handleChange = useCallback(
     (elements: readonly any[], _state: any) => {
+      if (!mountedRef.current) return;
       const map = doc.getMap(ELEMENTS_MAP_KEY);
       syncingRef.current = true;
 
@@ -56,6 +64,11 @@ export default function ExcalidrawCanvas({ doc }: Props) {
     },
     [doc]
   );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   return (
     <div className="h-full w-full">
