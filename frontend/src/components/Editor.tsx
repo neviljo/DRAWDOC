@@ -43,7 +43,7 @@ export default function Editor({ doc, provider, connectionStatus }: EditorProps)
   }
 
   return (
-    <div className="flex-1 flex divide-x divide-surface-800">
+    <div className="flex-1 h-full flex divide-x divide-surface-800">
       <div className="flex-1 min-w-0">
         <ErrorBoundary>
           <BlockNoteEditor doc={doc} provider={provider} />
