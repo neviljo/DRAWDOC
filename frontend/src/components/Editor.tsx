@@ -48,16 +48,12 @@ export default function Editor({ doc, provider, connectionStatus }: EditorProps)
   }
 
   return (
-    <div className="flex-1 flex divide-x divide-surface-800">
-      <div className="flex-1 min-w-0">
-        <ErrorBoundary>
-          <BlockNoteEditor doc={doc} provider={provider} />
-        </ErrorBoundary>
+    <div className="flex-1 flex">
+      <div className="flex-1 flex items-center justify-center bg-red-900 text-white text-lg font-bold">
+        BLOCKNOTE
       </div>
-      <div className="flex-1 min-w-0">
-        <ErrorBoundary>
-          <ExcalidrawCanvas doc={doc} provider={provider} />
-        </ErrorBoundary>
+      <div className="flex-1 flex items-center justify-center bg-blue-900 text-white text-lg font-bold">
+        EXCALIDRAW
       </div>
     </div>
   );
