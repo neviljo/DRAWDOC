@@ -15,6 +15,7 @@ const ELEMENTS_MAP_KEY = "excalidraw";
 export default function ExcalidrawCanvas({ doc }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const syncingRef = useRef(false);
+  const initialSyncRef = useRef(false);
 
   useEffect(() => {
     const map = doc.getMap(ELEMENTS_MAP_KEY);
@@ -54,7 +55,17 @@ export default function ExcalidrawCanvas({ doc }: Props) {
   return (
     <div className="h-full w-full">
       <Excalidraw
-        excalidrawAPI={(api) => { apiRef.current = api; }}
+        excalidrawAPI={(api) => {
+          apiRef.current = api;
+          if (!initialSyncRef.current) {
+            initialSyncRef.current = true;
+            const map = doc.getMap(ELEMENTS_MAP_KEY);
+            const elements = Array.from(map.values());
+            if (elements.length > 0) {
+              api.updateScene({ elements: elements as any });
+            }
+          }
+        }}
         onChange={handleChange}
         theme="dark"
         UIOptions={{

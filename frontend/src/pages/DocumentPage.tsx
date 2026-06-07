@@ -11,7 +11,7 @@ import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 export default function DocumentPage() {
   const { docId } = useParams<{ docId: string }>();
   const { doc, provider, connectionStatus } = useYjs(docId);
-  const { mode, cycle } = useViewModeStore();
+  const { mode, cycle, setMode } = useViewModeStore();
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -50,13 +50,21 @@ export default function DocumentPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => cycle()}
-            className="px-3 py-1.5 rounded-lg text-xs text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors"
-            title="Cycle view mode (Cmd+Shift+D)"
-          >
-            {mode === "split" ? "Split" : mode === "text" ? "Text" : "Diagram"}
-          </button>
+          <div className="flex items-center gap-1 bg-surface-900 rounded-lg p-0.5">
+            {(["split", "text", "diagram"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  mode === m
+                    ? "bg-accent text-white shadow-sm"
+                    : "text-surface-400 hover:text-surface-200"
+                }`}
+              >
+                {m === "split" ? "Split" : m === "text" ? "Text" : "Diagram"}
+              </button>
+            ))}
+          </div>
 
           <ThemeToggle />
           <AvatarStack provider={provider} />
