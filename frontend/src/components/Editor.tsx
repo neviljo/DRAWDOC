@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type * as Y from "yjs";
 import type { WebsocketProvider } from "y-websocket";
 import type { ConnectionStatus } from "../hooks/use-yjs";
+import type { ViewMode } from "../lib/view-mode-store";
 import BlockNoteEditor from "./BlockNoteEditor";
 import ExcalidrawCanvas from "./ExcalidrawCanvas";
 import ErrorBoundary from "./ErrorBoundary";
@@ -10,9 +11,10 @@ interface EditorProps {
   doc: Y.Doc | null;
   provider: WebsocketProvider | null;
   connectionStatus: ConnectionStatus;
+  viewMode: ViewMode;
 }
 
-export default function Editor({ doc, provider, connectionStatus }: EditorProps) {
+export default function Editor({ doc, provider, connectionStatus, viewMode }: EditorProps) {
   const [warming, setWarming] = useState(false);
 
   useEffect(() => {
@@ -38,6 +40,26 @@ export default function Editor({ doc, provider, connectionStatus }: EditorProps)
                 : "Connecting to document..."}
           </p>
         </div>
+      </div>
+    );
+  }
+
+  if (viewMode === "text") {
+    return (
+      <div className="flex-1 h-full">
+        <ErrorBoundary>
+          <BlockNoteEditor doc={doc} provider={provider} />
+        </ErrorBoundary>
+      </div>
+    );
+  }
+
+  if (viewMode === "diagram") {
+    return (
+      <div className="flex-1 h-full">
+        <ErrorBoundary>
+          <ExcalidrawCanvas doc={doc} provider={provider} />
+        </ErrorBoundary>
       </div>
     );
   }

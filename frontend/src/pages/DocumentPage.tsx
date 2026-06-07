@@ -84,15 +84,11 @@ export default function DocumentPage() {
           </aside>
         )}
 
-        <div className={`flex-1 flex overflow-hidden ${mode === "diagram" ? "" : ""}`}>
+        <div className="flex-1 flex overflow-hidden">
           {docId ? (
-            <>
-              {mode !== "diagram" && (
-                <div className={mode === "text" ? "flex-1" : "flex-1 border-r border-surface-800"}>
-                  <Editor key={docId} doc={doc} provider={provider} connectionStatus={connectionStatus} />
-                </div>
-              )}
-            </>
+            <div className="flex-1">
+              <Editor key={docId} doc={doc} provider={provider} connectionStatus={connectionStatus} viewMode={mode} />
+            </div>
           ) : (
             <div className="flex-1 flex items-center justify-center text-surface-500">
               No document selected
