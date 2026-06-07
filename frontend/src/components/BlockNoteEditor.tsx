@@ -2,6 +2,7 @@ import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { useCreateBlockNote, BlockNoteViewRaw } from "@blocknote/react";
 import "@blocknote/react/style.css";
+import { BlockNoteUIProvider } from "./BlockNoteUIProvider";
 
 const blockNoteStyles = `
   .bn-container {
@@ -34,7 +35,9 @@ export default function BlockNoteEditor({ doc, provider }: Props) {
     <div className="relative h-full" style={{ minHeight: 0 }}>
       <style>{blockNoteStyles}</style>
       <div className="absolute inset-0 overflow-y-auto">
-        <BlockNoteViewRaw editor={editor} theme="dark" />
+        <BlockNoteUIProvider>
+          <BlockNoteViewRaw editor={editor} theme="dark" />
+        </BlockNoteUIProvider>
       </div>
     </div>
   );
