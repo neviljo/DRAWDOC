@@ -16,8 +16,6 @@ export default function ExcalidrawCanvas({ doc }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const syncingRef = useRef(false);
   const mountedRef = useRef(false);
-  const initialLoadRef = useRef(true);
-  const pendingElementsRef = useRef<any>(null);
 
   function readElements() {
     const map = doc.getMap(ELEMENTS_MAP_KEY);
@@ -37,11 +35,7 @@ export default function ExcalidrawCanvas({ doc }: Props) {
     const handleSync = () => {
       if (syncingRef.current) return;
       const elements = readElements();
-      if (apiRef.current) {
-        apiRef.current.updateScene({ elements: elements as any });
-      } else {
-        pendingElementsRef.current = elements as any;
-      }
+      apiRef.current?.updateScene({ elements: elements as any });
     };
 
     map.observeDeep(handleSync);
@@ -50,10 +44,6 @@ export default function ExcalidrawCanvas({ doc }: Props) {
 
   const handleChange = useCallback(
     (elements: readonly any[], _state: any) => {
-      if (initialLoadRef.current) {
-        initialLoadRef.current = false;
-        return;
-      }
       if (!mountedRef.current) return;
       const map = doc.getMap(ELEMENTS_MAP_KEY);
       syncingRef.current = true;
@@ -83,13 +73,7 @@ export default function ExcalidrawCanvas({ doc }: Props) {
   return (
     <div className="h-full w-full">
       <Excalidraw
-        excalidrawAPI={(api) => {
-          apiRef.current = api;
-          if (pendingElementsRef.current) {
-            api.updateScene({ elements: pendingElementsRef.current });
-            pendingElementsRef.current = null;
-          }
-        }}
+        excalidrawAPI={(api) => { apiRef.current = api; }}
         initialData={initialData}
         onChange={handleChange}
         theme="dark"
