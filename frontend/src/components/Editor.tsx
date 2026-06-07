@@ -14,7 +14,7 @@ interface EditorProps {
   viewMode: ViewMode;
 }
 
-const MIN_PCT = 20;
+const MIN_PCT = 40;
 const MAX_PCT = 60;
 
 export default function Editor({ doc, provider, connectionStatus, viewMode }: EditorProps) {
