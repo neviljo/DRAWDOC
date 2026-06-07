@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type * as Y from "yjs";
 import type { WebsocketProvider } from "y-websocket";
 import type { ConnectionStatus } from "../hooks/use-yjs";
@@ -14,12 +14,39 @@ interface EditorProps {
   viewMode: ViewMode;
 }
 
+const MIN_PCT = 20;
+const MAX_PCT = 80;
+
 export default function Editor({ doc, provider, connectionStatus, viewMode }: EditorProps) {
   const [warming, setWarming] = useState(false);
+  const [splitPct, setSplitPct] = useState(50);
+  const dragging = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setWarming(true), 15000);
     return () => clearTimeout(t);
+  }, []);
+
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+
+    const onMove = (e: MouseEvent) => {
+      if (!dragging.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const pct = ((e.clientX - rect.left) / rect.width) * 100;
+      setSplitPct(Math.min(MAX_PCT, Math.max(MIN_PCT, pct)));
+    };
+
+    const onUp = () => {
+      dragging.current = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
   }, []);
 
   const show = doc && provider && connectionStatus === "connected";
@@ -65,13 +92,19 @@ export default function Editor({ doc, provider, connectionStatus, viewMode }: Ed
   }
 
   return (
-    <div className="flex-1 h-full flex divide-x divide-surface-800">
-      <div className="flex-1 min-w-0">
+    <div ref={containerRef} className="flex-1 h-full flex select-none" style={{ userSelect: dragging.current ? "none" : undefined }}>
+      <div className="min-w-0 h-full" style={{ width: `${splitPct}%` }}>
         <ErrorBoundary>
           <BlockNoteEditor doc={doc} provider={provider} />
         </ErrorBoundary>
       </div>
-      <div className="flex-1 min-w-0">
+      <div
+        className="w-1.5 bg-surface-800 hover:bg-accent/50 active:bg-accent cursor-col-resize shrink-0 transition-colors relative"
+        onMouseDown={onMouseDown}
+      >
+        <div className="absolute inset-0 -left-1 -right-1" />
+      </div>
+      <div className="min-w-0 h-full" style={{ width: `${100 - splitPct}%` }}>
         <ErrorBoundary>
           <ExcalidrawCanvas doc={doc} provider={provider} />
         </ErrorBoundary>
