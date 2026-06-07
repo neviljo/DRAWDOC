@@ -1,14 +1,17 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { useAuthStore } from "../lib/auth-store";
 
 const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:1234";
 
+export type ConnectionStatus = "connecting" | "connected" | "disconnected";
+
 export function useYjs(docId: string | undefined) {
   const docRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebsocketProvider | null>(null);
   const user = useAuthStore((s) => s.user);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connecting");
 
   useEffect(() => {
     if (!docId) return;
@@ -22,6 +25,15 @@ export function useYjs(docId: string | undefined) {
     });
     providerRef.current = provider;
 
+    setConnectionStatus("connecting");
+
+    const onStatus = (event: { status: string }) => {
+      if (event.status === "connected") setConnectionStatus("connected");
+      else if (event.status === "connecting") setConnectionStatus("connecting");
+      else setConnectionStatus("disconnected");
+    };
+    provider.on("status", onStatus);
+
     if (user) {
       provider.awareness.setLocalStateField("user", {
         id: user.id,
@@ -32,6 +44,7 @@ export function useYjs(docId: string | undefined) {
     }
 
     return () => {
+      provider.off("status", onStatus);
       provider.destroy();
       doc.destroy();
       docRef.current = null;
@@ -46,6 +59,7 @@ export function useYjs(docId: string | undefined) {
   return {
     doc: docRef.current,
     provider: providerRef.current,
+    connectionStatus,
     getAwareness,
   };
 }
