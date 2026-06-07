@@ -64,8 +64,8 @@ export default function Editor({ doc, provider, connectionStatus }: EditorProps)
       </div>
       <div className="h-6 bg-surface-900 flex items-center px-3 text-xs text-surface-500 gap-2">
         <span>phase:{phase}</span>
-        <span>doc:{!!doc}</span>
-        <span>ws:{!!provider}</span>
+        <span>doc:{String(!!doc)}</span>
+        <span>ws:{String(!!provider)}</span>
         <span>status:{connectionStatus}</span>
         <span>WS_URL:{WS_URL}</span>
       </div>

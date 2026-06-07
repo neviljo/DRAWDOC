@@ -14,8 +14,12 @@ export function useYjs(docId: string | undefined) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connecting");
 
   useEffect(() => {
-    if (!docId) return;
+    if (!docId) {
+      console.log("[useYjs effect] docId falsy, skipping", docId);
+      return;
+    }
 
+    console.log("[useYjs effect] START docId:", docId);
     const doc = new Y.Doc();
     docRef.current = doc;
 
@@ -44,7 +48,10 @@ export function useYjs(docId: string | undefined) {
       });
     }
 
+    console.log("[useYjs effect] END refs set docId:", docId);
+
     return () => {
+      console.log("[useYjs cleanup] docId:", docId);
       provider.off("status", onStatus);
       provider.destroy();
       doc.destroy();
@@ -57,9 +64,13 @@ export function useYjs(docId: string | undefined) {
     return providerRef.current?.awareness;
   }, []);
 
+  const outDoc = docRef.current;
+  const outProvider = providerRef.current;
+  console.log("[useYjs render] docId:", docId, "doc:", !!outDoc, "prov:", !!outProvider, "status:", connectionStatus);
+
   return {
-    doc: docRef.current,
-    provider: providerRef.current,
+    doc: outDoc,
+    provider: outProvider,
     connectionStatus,
     getAwareness,
   };
