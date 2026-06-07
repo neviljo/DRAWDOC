@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import React, { type ReactNode, useState } from "react";
 import { ComponentsContext } from "@blocknote/react";
 
 function ToolbarRoot({ className, children, onMouseEnter, onMouseLeave }: any) {
@@ -198,9 +198,26 @@ function GFormRoot({ children }: any) { return <div className="flex flex-col gap
 function GFormInput({ label, autoFocus, disabled, placeholder, value, onChange, onKeyDown, ref }: any) {
   return <div className="flex flex-col gap-1">{label && <label className="text-[10px] text-surface-500 font-medium">{label}</label>}<input ref={ref} type="text" autoFocus={autoFocus} disabled={disabled} placeholder={placeholder} value={value} onChange={onChange} onKeyDown={onKeyDown} className="w-full px-2 py-1.5 rounded text-xs bg-surface-800 border border-surface-700 text-surface-300 placeholder-surface-500" /></div>;
 }
-function GMenuRoot({ children }: any) { return <div className="relative">{children}</div>; }
+function GMenuRoot({ children, onOpenChange }: any) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      className="relative inline-flex"
+      onMouseEnter={() => { setOpen(true); onOpenChange?.(true); }}
+      onMouseLeave={() => { setOpen(false); onOpenChange?.(false); }}
+    >
+      {React.Children.map(children, (child: any) => {
+        if (child?.type === GMenuTrigger || child?.props?.className?.includes?.("bn-button")) {
+          return child;
+        }
+        if (open) return child;
+        return null;
+      })}
+    </div>
+  );
+}
 function GMenuDivider({ className }: any) { return <hr className={"border-surface-700 my-1 " + (className || "")} />; }
-function GMenuDropdown({ className, children }: any) { return <div className={"bg-surface-900 border border-surface-700 rounded-lg p-1 min-w-[160px] shadow-xl " + (className || "")}>{children}</div>; }
+function GMenuDropdown({ className, children }: any) { return <div className={"bg-surface-900 border border-surface-700 rounded-lg p-1 min-w-[160px] shadow-xl absolute top-full left-0 mt-1 z-50 " + (className || "")}>{children}</div>; }
 function GMenuItem({ className, icon, checked, onClick, children }: any) {
   return <button className={"flex items-center gap-2 w-full px-2.5 py-1.5 rounded text-sm text-left text-surface-400 hover:bg-surface-800 hover:text-surface-200 transition-colors " + (className || "")} onClick={onClick} type="button">{icon && <span className="w-4 shrink-0">{icon}</span>}{checked && <span className="text-accent text-xs">✓</span>}{children}</button>;
 }
