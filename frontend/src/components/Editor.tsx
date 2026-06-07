@@ -2,9 +2,6 @@ import { useEffect, useState } from "react";
 import type * as Y from "yjs";
 import type { WebsocketProvider } from "y-websocket";
 import type { ConnectionStatus } from "../hooks/use-yjs";
-import BlockNoteEditor from "./BlockNoteEditor";
-import ExcalidrawCanvas from "./ExcalidrawCanvas";
-import ErrorBoundary from "./ErrorBoundary";
 
 interface EditorProps {
   doc: Y.Doc | null;
