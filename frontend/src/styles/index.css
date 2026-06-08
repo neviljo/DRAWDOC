@@ -1,20 +1,20 @@
 @import "tailwindcss";
 
 @theme {
-  --color-surface-50: #f8f9fc;
-  --color-surface-100: #f1f3f8;
-  --color-surface-200: #e2e6ef;
-  --color-surface-300: #c9cfdd;
-  --color-surface-400: #a4adc2;
-  --color-surface-500: #7c87a0;
-  --color-surface-600: #5f6a84;
-  --color-surface-700: #4a536b;
-  --color-surface-800: #3c4357;
-  --color-surface-900: #2d3342;
-  --color-surface-950: #1a1d26;
+  --color-surface-50: #f5f5f5;
+  --color-surface-100: #e5e5e5;
+  --color-surface-200: #d4d4d4;
+  --color-surface-300: #b0b0b0;
+  --color-surface-400: #808080;
+  --color-surface-500: #606060;
+  --color-surface-600: #484848;
+  --color-surface-700: #383838;
+  --color-surface-800: #282828;
+  --color-surface-900: #1c1c1c;
+  --color-surface-950: #121212;
 
-  --color-accent: #7c3aed;
-  --color-accent-soft: #8b5cf6;
+  --color-accent: #2563eb;
+  --color-accent-soft: #3b82f6;
 
   --font-sans: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: "Plus Jakarta Sans", "Inter", sans-serif;

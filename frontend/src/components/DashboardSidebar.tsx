@@ -34,7 +34,7 @@ export default function DashboardSidebar({ workspaces, activeWorkspace, onSelect
   }
 
   return (
-    <aside className="w-64 h-screen flex flex-col bg-surface-950 border-r border-surface-800/60 select-none shrink-0">
+    <aside className="w-64 h-screen flex flex-col bg-[#181818] border-r border-surface-800/60 select-none shrink-0">
       <div className="px-4 pt-5 pb-4">
         <div className="flex items-center gap-2.5 mb-8">
           <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
