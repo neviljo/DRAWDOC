@@ -3,6 +3,7 @@ import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import type { Collaborator } from "@excalidraw/excalidraw/types";
 import "@excalidraw/excalidraw/index.css";
 
 interface Props {
@@ -12,10 +13,11 @@ interface Props {
 
 const ELEMENTS_MAP_KEY = "excalidraw";
 
-export default function ExcalidrawCanvas({ doc }: Props) {
+export default function ExcalidrawCanvas({ doc, provider }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const syncingRef = useRef(false);
   const onChangeReadyRef = useRef(false);
+  const collaboratorMapRef = useRef<Map<string, Collaborator>>(new Map());
 
   function readElements() {
     const map = doc.getMap(ELEMENTS_MAP_KEY);
@@ -46,6 +48,48 @@ export default function ExcalidrawCanvas({ doc }: Props) {
     return () => map.unobserveDeep(handleSync);
   }, [doc]);
 
+  useEffect(() => {
+    const awareness = provider.awareness;
+
+    const updateCollaborators = () => {
+      const api = apiRef.current;
+      if (!api) return;
+
+      const map = new Map<string, Collaborator>();
+      const states = awareness.getStates();
+
+      states.forEach((state: any, clientId: number) => {
+        const user = state.user;
+        if (!user) return;
+
+        const pointer = state.pointer || { x: 0, y: 0, tool: "pointer" };
+        const button = state.button || "up";
+
+        map.set(clientId.toString(), {
+          id: user.id,
+          username: user.name,
+          color: {
+            background: user.color,
+            stroke: user.color,
+          },
+          avatarUrl: user.avatarUrl || null,
+          pointer: { x: pointer.x, y: pointer.y, tool: "pointer" },
+          button,
+        });
+      });
+
+      collaboratorMapRef.current = map;
+      api.updateScene({ collaborators: map as any });
+    };
+
+    awareness.on("change", updateCollaborators);
+    updateCollaborators();
+
+    return () => {
+      awareness.off("change", updateCollaborators);
+    };
+  }, [provider]);
+
   const handleChange = useCallback(
     (elements: readonly any[], _state: any) => {
       if (!onChangeReadyRef.current) return;
@@ -65,8 +109,23 @@ export default function ExcalidrawCanvas({ doc }: Props) {
       });
 
       syncingRef.current = false;
+
+      // Re-render scene to include any remote changes that were
+      // applied during transact but not rendered due to syncingRef
+      const api = apiRef.current;
+      if (api) {
+        api.updateScene({ elements: readElements() as any });
+      }
     },
     [doc]
+  );
+
+  const handlePointerUpdate = useCallback(
+    (payload: { pointer: { x: number; y: number; tool: string }; button: "up" | "down" }) => {
+      provider.awareness.setLocalStateField("pointer", payload.pointer);
+      provider.awareness.setLocalStateField("button", payload.button);
+    },
+    [provider]
   );
 
   return (
@@ -75,11 +134,16 @@ export default function ExcalidrawCanvas({ doc }: Props) {
         excalidrawAPI={(api) => {
           apiRef.current = api;
           loadInitialScene();
+          const collabMap = collaboratorMapRef.current;
+          if (collabMap.size > 0) {
+            api.updateScene({ collaborators: collabMap as any });
+          }
           requestAnimationFrame(() => {
             requestAnimationFrame(() => { onChangeReadyRef.current = true; });
           });
         }}
         onChange={handleChange}
+        onPointerUpdate={handlePointerUpdate}
         theme="dark"
         UIOptions={{
           canvasActions: {

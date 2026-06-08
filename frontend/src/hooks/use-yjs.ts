@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { useAuthStore } from "../lib/auth-store";
+import { getGuestIdentity } from "../lib/guest-identity";
 
 const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:1234";
 
@@ -39,14 +40,13 @@ export function useYjs(docId: string | undefined) {
     };
     provider.on("status", onStatus);
 
-    if (user) {
-      provider.awareness.setLocalStateField("user", {
-        id: user.id,
-        name: user.display_name,
-        color: getUserColor(user.id),
-        avatarUrl: user.avatar_url,
-      });
-    }
+    const guest = getGuestIdentity();
+    provider.awareness.setLocalStateField("user", {
+      id: user?.id || guest.id,
+      name: user?.display_name || guest.name,
+      color: user ? getUserColor(user.id) : guest.color,
+      avatarUrl: user?.avatar_url || null,
+    });
 
     console.log("[useYjs effect] END refs set docId:", docId);
 
