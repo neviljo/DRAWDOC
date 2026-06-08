@@ -109,13 +109,6 @@ export default function ExcalidrawCanvas({ doc, provider }: Props) {
       });
 
       syncingRef.current = false;
-
-      // Re-render scene to include any remote changes that were
-      // applied during transact but not rendered due to syncingRef
-      const api = apiRef.current;
-      if (api) {
-        api.updateScene({ elements: readElements() as any });
-      }
     },
     [doc]
   );
