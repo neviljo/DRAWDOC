@@ -74,7 +74,7 @@ async def list_documents(
     result = await db.execute(stmt)
     docs = result.scalars().all()
     return [
-        {"id": str(d.id), "title": d.title, "view_mode": d.view_mode, "updated_at": d.updated_at.isoformat(), "created_at": d.created_at.isoformat()}
+        {"id": str(d.id), "title": d.title, "workspace_id": str(d.workspace_id), "view_mode": d.view_mode, "updated_at": d.updated_at.isoformat(), "created_at": d.created_at.isoformat()}
         for d in docs
     ]
 

@@ -112,8 +112,20 @@ async def main():
 
     async with ws_server:
         asgi_app = ASGIServer(ws_server)
+
+        class _SafeASGI:
+            def __init__(self, app):
+                self.app = app
+            async def __call__(self, scope, receive, send):
+                async def _send(event):
+                    try:
+                        await send(event)
+                    except Exception:
+                        pass
+                await self.app(scope, receive, _send)
+
         import uvicorn
-        config = uvicorn.Config(asgi_app, host=HOST, port=PORT, log_level="info")
+        config = uvicorn.Config(_SafeASGI(asgi_app), host=HOST, port=PORT, log_level="info")
         server = uvicorn.Server(config)
         logger.info("WS server starting on %s:%s", HOST, PORT)
         await server.serve()
