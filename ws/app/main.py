@@ -133,7 +133,14 @@ async def main():
                 await self.app(scope, receive, _send)
 
         import uvicorn
-        config = uvicorn.Config(_SafeASGI(asgi_app), host=HOST, port=PORT, log_level="info")
+        config = uvicorn.Config(
+            _SafeASGI(asgi_app),
+            host=HOST,
+            port=PORT,
+            log_level="info",
+            ws_ping_interval=20,
+            ws_ping_timeout=10,
+        )
         server = uvicorn.Server(config)
         logger.info("WS server starting on %s:%s", HOST, PORT)
         await server.serve()

@@ -27,6 +27,7 @@ export function useYjs(docId: string | undefined) {
     const token = sessionStorage.getItem("access_token") || "";
     const provider = new WebsocketProvider(WS_URL, docId, doc, {
       params: { token },
+      maxBackoffTime: 1000,
     });
     providerRef.current = provider;
 
@@ -48,10 +49,16 @@ export function useYjs(docId: string | undefined) {
       avatarUrl: user?.avatar_url || null,
     });
 
+    // Periodic heartbeat to keep WebSocket alive through Render's proxy
+    const keepalive = setInterval(() => {
+      provider.awareness.setLocalStateField("_ping", Date.now());
+    }, 25000);
+
     console.log("[useYjs effect] END refs set docId:", docId);
 
     return () => {
       console.log("[useYjs cleanup] docId:", docId);
+      clearInterval(keepalive);
       provider.off("status", onStatus);
       provider.destroy();
       doc.destroy();
