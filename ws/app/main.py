@@ -3,7 +3,7 @@ import asyncio
 import logging
 import uuid
 from contextlib import asynccontextmanager, suppress
-from pycrdt import Doc, Map, Text
+from pycrdt import Doc, Map
 from pycrdt.websocket import WebsocketServer, ASGIServer
 import redis.asyncio as aioredis
 import asyncpg
@@ -16,6 +16,9 @@ DATABASE_URL = os.getenv("WS_DATABASE_URL") or os.getenv("DATABASE_URL", "")
 SNAPSHOT_INTERVAL = int(os.getenv("WS_SNAPSHOT_INTERVAL", "30"))
 HOST = os.getenv("WS_HOST", "0.0.0.0")
 PORT = int(os.getenv("WS_PORT") or os.getenv("PORT") or "1234")
+
+_save_tasks: dict[str, asyncio.Task] = {}
+_save_refcount: dict[str, int] = {}
 
 
 async def save_to_pg(pg, doc_id: str, update_bytes: bytes):
@@ -44,6 +47,15 @@ async def load_from_pg(pg, doc_id: str) -> bytes | None:
     return None
 
 
+async def _periodic_save_running(doc: Doc, redis: aioredis.Redis, pg: asyncpg.Pool | None, path: str, redis_key: str):
+    while True:
+        await asyncio.sleep(SNAPSHOT_INTERVAL)
+        update = doc.get_update()
+        ub = bytes(update)
+        await redis.set(redis_key, ub)
+        await save_to_pg(pg, path, ub)
+
+
 @asynccontextmanager
 async def doc_provider(doc: Doc, redis: aioredis.Redis, pg: asyncpg.Pool | None, path: str):
     redis_key = f"yjs:{path}"
@@ -58,28 +70,24 @@ async def doc_provider(doc: Doc, redis: aioredis.Redis, pg: asyncpg.Pool | None,
             doc.apply_update(pg_data)
             logger.info("Loaded snapshot from PostgreSQL for %s", path)
         else:
-            doc["content"] = Map()
-            doc["content"]["blocknote"] = Text()
-            doc["content"]["excalidraw"] = Map()
+            doc["excalidraw"] = Map()
             logger.info("Created new doc for %s", path)
 
-    async def _periodic_save():
-        while True:
-            await asyncio.sleep(SNAPSHOT_INTERVAL)
-            update = doc.get_update()
-            ub = bytes(update)
-            await redis.set(redis_key, ub)
-            await save_to_pg(pg, path, ub)
-            logger.debug("Saved snapshot for %s (%d bytes)", path, len(ub))
-
-    save_task = asyncio.create_task(_periodic_save())
+    if path not in _save_tasks or _save_tasks[path].done():
+        _save_tasks[path] = asyncio.create_task(_periodic_save_running(doc, redis, pg, path, redis_key))
+    _save_refcount[path] = _save_refcount.get(path, 0) + 1
 
     try:
         yield
     finally:
-        save_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await save_task
+        _save_refcount[path] -= 1
+        if _save_refcount[path] <= 0:
+            if path in _save_tasks:
+                _save_tasks[path].cancel()
+                with suppress(asyncio.CancelledError):
+                    await _save_tasks[path]
+                del _save_tasks[path]
+                del _save_refcount[path]
         update = doc.get_update()
         ub = bytes(update)
         await redis.set(redis_key, ub)
