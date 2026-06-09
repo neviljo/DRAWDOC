@@ -3,8 +3,15 @@ import asyncio
 import logging
 import uuid
 from contextlib import asynccontextmanager, suppress
-from pycrdt import Doc, Map
+from pycrdt import (
+    Doc, Map, YMessageType, YSyncMessageType,
+    create_sync_message, handle_sync_message,
+    is_awareness_disconnect_message, read_message,
+)
 from pycrdt.websocket import WebsocketServer, ASGIServer
+from pycrdt.websocket.asgi_server import ASGIWebsocket
+from pycrdt.websocket.yroom import YRoom
+from anyio import create_task_group
 import redis.asyncio as aioredis
 import asyncpg
 
@@ -121,17 +128,6 @@ async def main():
     async with ws_server:
         asgi_app = ASGIServer(ws_server)
 
-        class _SafeASGI:
-            def __init__(self, app):
-                self.app = app
-            async def __call__(self, scope, receive, send):
-                async def _send(event):
-                    try:
-                        await send(event)
-                    except Exception:
-                        pass
-                await self.app(scope, receive, _send)
-
         import uvicorn
         config = uvicorn.Config(
             _SafeASGI(asgi_app),
@@ -144,6 +140,81 @@ async def main():
         server = uvicorn.Server(config)
         logger.info("WS server starting on %s:%s", HOST, PORT)
         await server.serve()
+
+
+class _SafeASGI:
+    def __init__(self, app):
+        self.app = app
+    async def __call__(self, scope, receive, send):
+        async def _send(event):
+            try:
+                await send(event)
+            except Exception as e:
+                logger.warning("ASGI send failed: %s", e)
+        await self.app(scope, receive, _send)
+
+
+_ORIG_WS_SEND = ASGIWebsocket.send
+
+
+async def _safe_ws_send(self, message):
+    try:
+        await _ORIG_WS_SEND(self, message)
+    except Exception:
+        pass
+
+
+async def _patched_serve(self, channel):
+    """Broadcast sync updates directly to other clients, bypassing the
+    indirect ydoc.observe -> memory stream -> _broadcast_updates path."""
+    try:
+        async with create_task_group() as tg:
+            self.clients.add(channel)
+            sync_message = create_sync_message(self.ydoc)
+            await channel.send(sync_message)
+            async for message in channel:
+                try:
+                    skip = False
+                    if self.on_message:
+                        _skip = self.on_message(message)
+                        skip = await _skip if hasattr(_skip, '__await__') else _skip
+                    if skip:
+                        continue
+                    message_type = message[0]
+                    if message_type == YMessageType.SYNC:
+                        reply = handle_sync_message(message[1:], self.ydoc)
+                        if reply is not None:
+                            tg.start_soon(channel.send, reply)
+                        elif len(message) > 2:
+                            # Direct broadcast to all other clients
+                            broadcast = bytearray(message)
+                            broadcast[1] = YSyncMessageType.SYNC_UPDATE
+                            for client in list(self.clients):
+                                if client is not channel:
+                                    tg.start_soon(client.send, bytes(broadcast))
+                    elif message_type == YMessageType.AWARENESS:
+                        disconnection = is_awareness_disconnect_message(message[1:])
+                        for client in self.clients:
+                            if disconnection and client is channel:
+                                continue
+                            tg.start_soon(client.send, message)
+                        self.awareness.apply_awareness_update(
+                            read_message(message[1:]), self
+                        )
+                except Exception as exc:
+                    if self._on_message_error is not None:
+                        _handled = self._on_message_error(exc, message, channel)
+                        handled = await _handled if hasattr(_handled, '__await__') else _handled
+                        if handled:
+                            continue
+    except Exception:
+        logger.warning("serve error", exc_info=True)
+    finally:
+        self.clients.discard(channel)
+
+
+ASGIWebsocket.send = _safe_ws_send
+YRoom.serve = _patched_serve
 
 
 if __name__ == "__main__":
