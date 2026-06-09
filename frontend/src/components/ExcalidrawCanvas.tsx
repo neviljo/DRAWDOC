@@ -12,13 +12,13 @@ interface Props {
 }
 
 const ELEMENTS_MAP_KEY = "excalidraw";
+const LOCAL_ORIGIN = Symbol("excalidraw-local");
 
 export default function ExcalidrawCanvas({ doc, provider }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const syncingRef = useRef(false);
   const onChangeReadyRef = useRef(false);
   const collaboratorMapRef = useRef<Map<string, Collaborator>>(new Map());
-  const remoteUpdateRef = useRef(false);
 
   function readElements() {
     const map = doc.getMap(ELEMENTS_MAP_KEY);
@@ -39,9 +39,9 @@ export default function ExcalidrawCanvas({ doc, provider }: Props) {
   useEffect(() => {
     const map = doc.getMap(ELEMENTS_MAP_KEY);
 
-    const handleSync = () => {
+    const handleSync = (_events: any, transaction: any) => {
       if (syncingRef.current) return;
-      remoteUpdateRef.current = true;
+      if (transaction.origin === LOCAL_ORIGIN) return;
       const elements = readElements();
       apiRef.current?.updateScene({ elements: elements as any });
     };
@@ -96,14 +96,6 @@ export default function ExcalidrawCanvas({ doc, provider }: Props) {
     (elements: readonly any[], _state: any) => {
       if (!onChangeReadyRef.current) return;
 
-      if (remoteUpdateRef.current) {
-        remoteUpdateRef.current = false;
-        const mapKeys = new Set(doc.getMap(ELEMENTS_MAP_KEY).keys());
-        if (mapKeys.size === elements.length && elements.every((el: any) => mapKeys.has(el.id))) {
-          return;
-        }
-      }
-
       const map = doc.getMap(ELEMENTS_MAP_KEY);
       syncingRef.current = true;
 
@@ -117,7 +109,7 @@ export default function ExcalidrawCanvas({ doc, provider }: Props) {
             map.delete(id);
           }
         }
-      });
+      }, LOCAL_ORIGIN);
 
       syncingRef.current = false;
     },

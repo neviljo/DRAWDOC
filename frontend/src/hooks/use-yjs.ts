@@ -50,9 +50,18 @@ export function useYjs(docId: string | undefined) {
     });
 
     // Periodic heartbeat to keep WebSocket alive through Render's proxy
+    // y-websocket forces reconnect after 30s of no received messages.
+    // Since awareness is send-only, we must also reset _lastMessageReceived
+    // to prevent unnecessary forced reconnection every 30s.
     const keepalive = setInterval(() => {
       provider.awareness.setLocalStateField("_ping", Date.now());
-    }, 25000);
+      try {
+        const ws = (provider as any).ws;
+        if (ws && typeof ws._lastMessageReceived === "number") {
+          ws._lastMessageReceived = Date.now();
+        }
+      } catch { /* provider may be destroyed */ }
+    }, 20000);
 
     console.log("[useYjs effect] END refs set docId:", docId);
 
