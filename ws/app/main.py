@@ -4,7 +4,7 @@ import logging
 import uuid
 from contextlib import asynccontextmanager, suppress
 from pycrdt import (
-    Doc, Map, YMessageType, YSyncMessageType,
+    Doc, Map, YMessageType,
     create_sync_message, handle_sync_message,
     is_awareness_disconnect_message, read_message,
 )
@@ -165,8 +165,8 @@ async def _safe_ws_send(self, message):
 
 
 async def _patched_serve(self, channel):
-    """Broadcast sync updates directly to other clients, bypassing the
-    indirect ydoc.observe -> memory stream -> _broadcast_updates path."""
+    """Serve a client with safe error handling.
+    Broadcasting is handled by the room's _broadcast_updates task via ydoc.observe."""
     try:
         async with create_task_group() as tg:
             self.clients.add(channel)
@@ -185,13 +185,6 @@ async def _patched_serve(self, channel):
                         reply = handle_sync_message(message[1:], self.ydoc)
                         if reply is not None:
                             tg.start_soon(channel.send, reply)
-                        elif len(message) > 2:
-                            # Direct broadcast to all other clients
-                            broadcast = bytearray(message)
-                            broadcast[1] = YSyncMessageType.SYNC_UPDATE
-                            for client in list(self.clients):
-                                if client is not channel:
-                                    tg.start_soon(client.send, bytes(broadcast))
                     elif message_type == YMessageType.AWARENESS:
                         disconnection = is_awareness_disconnect_message(message[1:])
                         for client in self.clients:

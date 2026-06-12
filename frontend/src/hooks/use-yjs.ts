@@ -57,8 +57,8 @@ export function useYjs(docId: string | undefined) {
       provider.awareness.setLocalStateField("_ping", Date.now());
       try {
         const ws = (provider as any).ws;
-        if (ws && typeof ws._lastMessageReceived === "number") {
-          ws._lastMessageReceived = Date.now();
+        if (ws && typeof ws.wsLastMessageReceived === "number") {
+          ws.wsLastMessageReceived = Date.now();
         }
       } catch { /* provider may be destroyed */ }
     }, 20000);
