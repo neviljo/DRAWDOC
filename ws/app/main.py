@@ -4,7 +4,7 @@ import logging
 import uuid
 from contextlib import asynccontextmanager, suppress
 from pycrdt import (
-    Doc, Map, YMessageType,
+    Doc, Map, YMessageType, YSyncMessageType,
     create_sync_message, handle_sync_message,
     is_awareness_disconnect_message, read_message,
 )
@@ -185,6 +185,17 @@ async def _patched_serve(self, channel):
                         reply = handle_sync_message(message[1:], self.ydoc)
                         if reply is not None:
                             tg.start_soon(channel.send, reply)
+                        # Explicitly broadcast SYNC_STEP2 / SYNC_UPDATE to all other clients.
+                        # Safety net: if YDoc observer → _broadcast_updates fails,
+                        # other clients still receive updates in real time.
+                        sync_subtype = message[1] if len(message) > 1 else None
+                        if sync_subtype in (
+                            YSyncMessageType.SYNC_STEP2,
+                            YSyncMessageType.SYNC_UPDATE,
+                        ):
+                            for client in self.clients:
+                                if client is not channel:
+                                    tg.start_soon(client.send, message)
                     elif message_type == YMessageType.AWARENESS:
                         disconnection = is_awareness_disconnect_message(message[1:])
                         for client in self.clients:
@@ -195,6 +206,7 @@ async def _patched_serve(self, channel):
                             read_message(message[1:]), self
                         )
                 except Exception as exc:
+                    logger.warning("message handler error: %s", exc, exc_info=True)
                     if self._on_message_error is not None:
                         _handled = self._on_message_error(exc, message, channel)
                         handled = await _handled if hasattr(_handled, '__await__') else _handled
