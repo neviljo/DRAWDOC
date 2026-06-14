@@ -27,6 +27,7 @@ PORT = int(os.getenv("WS_PORT") or os.getenv("PORT") or "1234")
 _save_tasks: dict[str, asyncio.Task] = {}
 _save_refcount: dict[str, int] = {}
 _REDIS_CLIENT: aioredis.Redis | None = None
+INSTANCE_ID = uuid.uuid4().bytes
 
 
 async def save_to_pg(pg, doc_id: str, update_bytes: bytes):
@@ -67,25 +68,46 @@ async def _periodic_save_running(doc: Doc, redis: aioredis.Redis, pg: asyncpg.Po
 
 
 async def redis_pubsub_listener(doc: Doc, redis: aioredis.Redis, doc_id: str):
-    pubsub = redis.pubsub()
     pubsub_key = f"yjs:pubsub:{doc_id}"
-    await pubsub.subscribe(pubsub_key)
-    logger.info("Subscribed to Redis Pub/Sub channel %s", pubsub_key)
-    try:
-        async for message in pubsub.listen():
-            if message["type"] == "message":
-                data = message["data"]
-                # Apply update to internal YDoc if it's a SYNC message
-                if len(data) > 1 and data[0] == YMessageType.SYNC:
-                    with suppress(Exception):
-                        handle_sync_message(data[1:], doc)
-    except asyncio.CancelledError:
-        pass
-    except Exception as e:
-        logger.warning("Error in Redis Pub/Sub listener: %s", e)
-    finally:
-        with suppress(Exception):
-            await pubsub.unsubscribe(pubsub_key)
+    while True:
+        try:
+            pubsub = redis.pubsub()
+            await pubsub.subscribe(pubsub_key)
+            logger.info("Subscribed to Redis Pub/Sub channel %s", pubsub_key)
+            try:
+                async for message in pubsub.listen():
+                    if message["type"] == "message":
+                        data = message["data"]
+                        if len(data) > 16:
+                            sender_instance_id = data[:16]
+                            raw_msg = data[16:]
+                            
+                            if sender_instance_id == INSTANCE_ID:
+                                continue
+                            
+                            if len(raw_msg) > 1:
+                                msg_type = raw_msg[0]
+                                if msg_type == YMessageType.SYNC:
+                                    with suppress(Exception):
+                                        handle_sync_message(raw_msg[1:], doc)
+                                elif msg_type == YMessageType.AWARENESS:
+                                    room = getattr(doc, "_room", None)
+                                    if room:
+                                        with suppress(Exception):
+                                            room.awareness.apply_awareness_update(
+                                                read_message(raw_msg[1:]), room
+                                            )
+                                            for client in room.clients:
+                                                room._task_group.start_soon(client.send, raw_msg)
+            finally:
+                with suppress(Exception):
+                    await pubsub.unsubscribe(pubsub_key)
+        except asyncio.CancelledError:
+            logger.info("Redis Pub/Sub listener cancelled for %s", doc_id)
+            break
+        except Exception as e:
+            logger.warning("Redis Pub/Sub listener error, reconnecting in 2s: %s", e)
+            await asyncio.sleep(2)
 
 
 @asynccontextmanager
@@ -182,6 +204,20 @@ class _SafeASGI:
     def __init__(self, app):
         self.app = app
     async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            await send({
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [
+                    (b"content-type", b"text/plain"),
+                ],
+            })
+            await send({
+                "type": "http.response.body",
+                "body": b"OK",
+            })
+            return
+
         async def _send(event):
             try:
                 await send(event)
@@ -223,23 +259,17 @@ async def _patched_serve(self, channel):
                         reply = handle_sync_message(message[1:], self.ydoc)
                         if reply is not None:
                             tg.start_soon(channel.send, reply)
-                        # Explicitly broadcast SYNC_STEP2 / SYNC_UPDATE to all other clients.
-                        # Safety net: if YDoc observer → _broadcast_updates fails,
-                        # other clients still receive updates in real time.
+                        # Sync across other server instances using Redis Pub/Sub
                         sync_subtype = message[1] if len(message) > 1 else None
                         if sync_subtype in (
                             YSyncMessageType.SYNC_STEP2,
                             YSyncMessageType.SYNC_UPDATE,
                         ):
-                            # Sync across local clients
-                            for client in self.clients:
-                                if client is not channel:
-                                    tg.start_soon(client.send, message)
-                            # Sync across other server instances using Redis Pub/Sub
                             if _REDIS_CLIENT:
                                 doc_id = channel.path.lstrip("/")
                                 pubsub_key = f"yjs:pubsub:{doc_id}"
-                                tg.start_soon(_REDIS_CLIENT.publish, pubsub_key, message)
+                                pub_data = INSTANCE_ID + message
+                                tg.start_soon(_REDIS_CLIENT.publish, pubsub_key, pub_data)
                     elif message_type == YMessageType.AWARENESS:
                         disconnection = is_awareness_disconnect_message(message[1:])
                         for client in self.clients:
@@ -249,6 +279,12 @@ async def _patched_serve(self, channel):
                         self.awareness.apply_awareness_update(
                             read_message(message[1:]), self
                         )
+                        # Sync awareness across other server instances using Redis Pub/Sub
+                        if _REDIS_CLIENT:
+                            doc_id = channel.path.lstrip("/")
+                            pubsub_key = f"yjs:pubsub:{doc_id}"
+                            pub_data = INSTANCE_ID + message
+                            tg.start_soon(_REDIS_CLIENT.publish, pubsub_key, pub_data)
                 except Exception as exc:
                     logger.warning("message handler error: %s", exc, exc_info=True)
                     if self._on_message_error is not None:
@@ -262,8 +298,17 @@ async def _patched_serve(self, channel):
         self.clients.discard(channel)
 
 
+_ORIG_RUN_PROVIDER = YRoom._run_provider
+
+
+async def _patched_run_provider(self):
+    self.ydoc._room = self
+    await _ORIG_RUN_PROVIDER(self)
+
+
 ASGIWebsocket.send = _safe_ws_send
 YRoom.serve = _patched_serve
+YRoom._run_provider = _patched_run_provider
 
 
 if __name__ == "__main__":
