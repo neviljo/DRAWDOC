@@ -88,8 +88,12 @@ async def redis_pubsub_listener(doc: Doc, redis: aioredis.Redis, doc_id: str):
                             if len(raw_msg) > 1:
                                 msg_type = raw_msg[0]
                                 if msg_type == YMessageType.SYNC:
-                                    with suppress(Exception):
-                                        handle_sync_message(raw_msg[1:], doc)
+                                    room = getattr(doc, "_room", None)
+                                    if room:
+                                        with suppress(Exception):
+                                            handle_sync_message(raw_msg[1:], doc)
+                                            for client in room.clients:
+                                                room._task_group.start_soon(client.send, raw_msg)
                                 elif msg_type == YMessageType.AWARENESS:
                                     room = getattr(doc, "_room", None)
                                     if room:
@@ -259,6 +263,10 @@ async def _patched_serve(self, channel):
                         reply = handle_sync_message(message[1:], self.ydoc)
                         if reply is not None:
                             tg.start_soon(channel.send, reply)
+                        # Sync across local clients
+                        for client in self.clients:
+                            if client is not channel:
+                                tg.start_soon(client.send, message)
                         # Sync across other server instances using Redis Pub/Sub
                         sync_subtype = message[1] if len(message) > 1 else None
                         if sync_subtype in (

@@ -44,7 +44,6 @@ export default function ExcalidrawCanvas({ doc, provider }: Props) {
       if (syncingRef.current) return;
       if (transaction.origin === LOCAL_ORIGIN) return;
       const elements = readElements();
-      
       applyingRemoteUpdateRef.current = true;
       apiRef.current?.updateScene({ elements: elements as any });
       applyingRemoteUpdateRef.current = false;
@@ -103,12 +102,11 @@ export default function ExcalidrawCanvas({ doc, provider }: Props) {
 
       const map = doc.getMap(ELEMENTS_MAP_KEY);
 
-      // Verify if there are any actual changes before writing to Yjs doc
       let hasChanges = false;
       const incoming = new Map(elements.map((el: any) => [el.id, el]));
       for (const [id, el] of incoming) {
         const existing = map.get(id) as any;
-        if (!existing || existing.version !== el.version) {
+        if (!existing || existing.get('version') !== el.version) {
           hasChanges = true;
           break;
         }
@@ -121,14 +119,13 @@ export default function ExcalidrawCanvas({ doc, provider }: Props) {
           }
         }
       }
-
       if (!hasChanges) return;
 
       syncingRef.current = true;
       doc.transact(() => {
         for (const [id, el] of incoming) {
           const existing = map.get(id) as any;
-          if (!existing || existing.version !== el.version) {
+          if (!existing || existing.get('version') !== el.version) {
             map.set(id, el);
           }
         }
