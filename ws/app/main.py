@@ -26,11 +26,13 @@ PORT = int(os.getenv("WS_PORT") or os.getenv("PORT") or "1234")
 
 _save_tasks: dict[str, asyncio.Task] = {}
 _save_refcount: dict[str, int] = {}
+_REDIS_CLIENT: aioredis.Redis | None = None
 
 
 async def save_to_pg(pg, doc_id: str, update_bytes: bytes):
     if not pg:
         return
+    doc_id = doc_id.lstrip("/")
     with suppress(Exception):
         await pg.execute(
             """INSERT INTO doc_snapshots (id, doc_id, yjs_state, version, saved_at)
@@ -44,6 +46,7 @@ async def save_to_pg(pg, doc_id: str, update_bytes: bytes):
 async def load_from_pg(pg, doc_id: str) -> bytes | None:
     if not pg:
         return None
+    doc_id = doc_id.lstrip("/")
     with suppress(Exception):
         row = await pg.fetchrow(
             "SELECT yjs_state FROM doc_snapshots WHERE doc_id = $1 ORDER BY saved_at DESC LIMIT 1",
@@ -54,57 +57,90 @@ async def load_from_pg(pg, doc_id: str) -> bytes | None:
     return None
 
 
-async def _periodic_save_running(doc: Doc, redis: aioredis.Redis, pg: asyncpg.Pool | None, path: str, redis_key: str):
+async def _periodic_save_running(doc: Doc, redis: aioredis.Redis, pg: asyncpg.Pool | None, doc_id: str, redis_key: str):
     while True:
         await asyncio.sleep(SNAPSHOT_INTERVAL)
         update = doc.get_update()
         ub = bytes(update)
         await redis.set(redis_key, ub)
-        await save_to_pg(pg, path, ub)
+        await save_to_pg(pg, doc_id, ub)
+
+
+async def redis_pubsub_listener(doc: Doc, redis: aioredis.Redis, doc_id: str):
+    pubsub = redis.pubsub()
+    pubsub_key = f"yjs:pubsub:{doc_id}"
+    await pubsub.subscribe(pubsub_key)
+    logger.info("Subscribed to Redis Pub/Sub channel %s", pubsub_key)
+    try:
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                data = message["data"]
+                # Apply update to internal YDoc if it's a SYNC message
+                if len(data) > 1 and data[0] == YMessageType.SYNC:
+                    with suppress(Exception):
+                        handle_sync_message(data[1:], doc)
+    except asyncio.CancelledError:
+        pass
+    except Exception as e:
+        logger.warning("Error in Redis Pub/Sub listener: %s", e)
+    finally:
+        with suppress(Exception):
+            await pubsub.unsubscribe(pubsub_key)
 
 
 @asynccontextmanager
 async def doc_provider(doc: Doc, redis: aioredis.Redis, pg: asyncpg.Pool | None, path: str):
-    redis_key = f"yjs:{path}"
+    doc_id = path.lstrip("/")
+    redis_key = f"yjs:{doc_id}"
 
     data = await redis.get(redis_key)
     if data:
         doc.apply_update(bytes(data))
-        logger.info("Loaded snapshot from Redis for %s", path)
+        logger.info("Loaded snapshot from Redis for %s", doc_id)
     else:
-        pg_data = await load_from_pg(pg, path) if pg else None
+        pg_data = await load_from_pg(pg, doc_id) if pg else None
         if pg_data:
             doc.apply_update(pg_data)
-            logger.info("Loaded snapshot from PostgreSQL for %s", path)
+            logger.info("Loaded snapshot from PostgreSQL for %s", doc_id)
         else:
             doc["excalidraw"] = Map()
-            logger.info("Created new doc for %s", path)
+            logger.info("Created new doc for %s", doc_id)
 
-    if path not in _save_tasks or _save_tasks[path].done():
-        _save_tasks[path] = asyncio.create_task(_periodic_save_running(doc, redis, pg, path, redis_key))
-    _save_refcount[path] = _save_refcount.get(path, 0) + 1
+    # Start the pubsub listener task for horizontal scaling sync
+    pubsub_task = asyncio.create_task(redis_pubsub_listener(doc, redis, doc_id))
+
+    if doc_id not in _save_tasks or _save_tasks[doc_id].done():
+        _save_tasks[doc_id] = asyncio.create_task(_periodic_save_running(doc, redis, pg, doc_id, redis_key))
+    _save_refcount[doc_id] = _save_refcount.get(doc_id, 0) + 1
 
     try:
         yield
     finally:
-        _save_refcount[path] -= 1
-        if _save_refcount[path] <= 0:
-            if path in _save_tasks:
-                _save_tasks[path].cancel()
+        # Stop the pubsub listener task
+        pubsub_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await pubsub_task
+
+        _save_refcount[doc_id] -= 1
+        if _save_refcount[doc_id] <= 0:
+            if doc_id in _save_tasks:
+                _save_tasks[doc_id].cancel()
                 with suppress(asyncio.CancelledError):
-                    await _save_tasks[path]
-                del _save_tasks[path]
-                del _save_refcount[path]
+                    await _save_tasks[doc_id]
+                del _save_tasks[doc_id]
+                del _save_refcount[doc_id]
         update = doc.get_update()
         ub = bytes(update)
         await redis.set(redis_key, ub)
-        await save_to_pg(pg, path, ub)
-        logger.info("Saved final snapshot for %s (%d bytes)", path, len(ub))
+        await save_to_pg(pg, doc_id, ub)
+        logger.info("Saved final snapshot for %s (%d bytes)", doc_id, len(ub))
 
 
 async def main():
+    global _REDIS_CLIENT
     redis = aioredis.from_url(REDIS_URL, decode_responses=False)
     await redis.ping()
+    _REDIS_CLIENT = redis
     logger.info("Connected to Redis at %s", REDIS_URL)
 
     pg = None
@@ -173,6 +209,8 @@ async def _patched_serve(self, channel):
             sync_message = create_sync_message(self.ydoc)
             await channel.send(sync_message)
             async for message in channel:
+                if not message:
+                    continue
                 try:
                     skip = False
                     if self.on_message:
@@ -193,9 +231,15 @@ async def _patched_serve(self, channel):
                             YSyncMessageType.SYNC_STEP2,
                             YSyncMessageType.SYNC_UPDATE,
                         ):
+                            # Sync across local clients
                             for client in self.clients:
                                 if client is not channel:
                                     tg.start_soon(client.send, message)
+                            # Sync across other server instances using Redis Pub/Sub
+                            if _REDIS_CLIENT:
+                                doc_id = channel.path.lstrip("/")
+                                pubsub_key = f"yjs:pubsub:{doc_id}"
+                                tg.start_soon(_REDIS_CLIENT.publish, pubsub_key, message)
                     elif message_type == YMessageType.AWARENESS:
                         disconnection = is_awareness_disconnect_message(message[1:])
                         for client in self.clients:
