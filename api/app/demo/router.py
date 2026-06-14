@@ -1,8 +1,9 @@
+import uuid
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 
-DEMO_DOC_ID = "demo-workspace-doc"
+DEMO_DOC_ID = "da777777-7777-7777-7777-777777777777"
 
 
 @router.post("/reset")
@@ -13,8 +14,9 @@ async def reset_demo():
 
     async with async_session() as session:
         await session.execute(
-            delete(DocSnapshot).where(DocSnapshot.doc_id == DEMO_DOC_ID)
+            delete(DocSnapshot).where(DocSnapshot.doc_id == uuid.UUID(DEMO_DOC_ID))
         )
         await session.commit()
 
     return {"ok": True, "message": "Demo document reset"}
+

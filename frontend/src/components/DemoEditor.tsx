@@ -5,14 +5,14 @@ import { useYjs } from "../hooks/use-yjs";
 import BlockNoteEditor from "./BlockNoteEditor";
 import ExcalidrawCanvas from "./ExcalidrawCanvas";
 
-const DEMO_DOC_ID = "demo-workspace-doc";
+const DEMO_DOC_ID = "da777777-7777-7777-7777-777777777777";
 
 export default function DemoEditor() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [collaboratorCount, setCollaboratorCount] = useState(0);
   const [resetKey, setResetKey] = useState(0);
 
-  const { doc, provider } = useYjs(DEMO_DOC_ID);
+  const { doc, provider, connectionStatus } = useYjs(DEMO_DOC_ID);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -62,8 +62,22 @@ export default function DemoEditor() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-xs text-surface-500">
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            {collaboratorCount} editing
+            {connectionStatus === "connected" ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                {collaboratorCount} editing
+              </>
+            ) : connectionStatus === "connecting" ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                Connecting...
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-rose-500" />
+                Offline
+              </>
+            )}
           </div>
           <button
             onClick={handleReset}

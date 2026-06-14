@@ -31,7 +31,7 @@ DEMO_DOCUMENTS = [
     {"title": "Sprint Planning Q2", "workspace_slug": "design-team", "created_by_email": "bob@drawdoc.demo"},
 ]
 
-DEMO_DOC_ID = "demo-workspace-doc"
+DEMO_DOC_ID = uuid.UUID("da777777-7777-7777-7777-777777777777")
 
 
 async def seed():
