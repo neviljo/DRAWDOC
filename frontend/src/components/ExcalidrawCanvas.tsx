@@ -19,7 +19,6 @@ export default function ExcalidrawCanvas({ doc, provider }: Props) {
   const syncingRef = useRef(false);
   const onChangeReadyRef = useRef(false);
   const collaboratorMapRef = useRef<Map<string, Collaborator>>(new Map());
-  const applyingRemoteUpdateRef = useRef(false);
 
   function readElements() {
     const map = doc.getMap(ELEMENTS_MAP_KEY);
@@ -44,9 +43,7 @@ export default function ExcalidrawCanvas({ doc, provider }: Props) {
       if (syncingRef.current) return;
       if (transaction.origin === LOCAL_ORIGIN) return;
       const elements = readElements();
-      applyingRemoteUpdateRef.current = true;
       apiRef.current?.updateScene({ elements: elements as any });
-      applyingRemoteUpdateRef.current = false;
     };
 
     map.observeDeep(handleSync);
@@ -98,36 +95,14 @@ export default function ExcalidrawCanvas({ doc, provider }: Props) {
   const handleChange = useCallback(
     (elements: readonly any[], _state: any) => {
       if (!onChangeReadyRef.current) return;
-      if (applyingRemoteUpdateRef.current) return;
 
       const map = doc.getMap(ELEMENTS_MAP_KEY);
-
-      let hasChanges = false;
-      const incoming = new Map(elements.map((el: any) => [el.id, el]));
-      for (const [id, el] of incoming) {
-        const existing = map.get(id) as any;
-        if (!existing || existing.get('version') !== el.version) {
-          hasChanges = true;
-          break;
-        }
-      }
-      if (!hasChanges) {
-        for (const [id] of map) {
-          if (!incoming.has(id)) {
-            hasChanges = true;
-            break;
-          }
-        }
-      }
-      if (!hasChanges) return;
-
       syncingRef.current = true;
+
       doc.transact(() => {
+        const incoming = new Map(elements.map((el: any) => [el.id, el]));
         for (const [id, el] of incoming) {
-          const existing = map.get(id) as any;
-          if (!existing || existing.get('version') !== el.version) {
-            map.set(id, el);
-          }
+          map.set(id, el);
         }
         for (const [id] of map) {
           if (!incoming.has(id)) {
