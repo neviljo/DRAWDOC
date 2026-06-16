@@ -92,7 +92,7 @@ async def redis_pubsub_listener(doc: Doc, redis: aioredis.Redis, doc_id: str):
                                     if room:
                                         with suppress(Exception):
                                             handle_sync_message(raw_msg[1:], doc)
-                                            for client in room.clients:
+                                            for client in list(room.clients):
                                                 room._task_group.start_soon(client.send, raw_msg)
                                 elif msg_type == YMessageType.AWARENESS:
                                     room = getattr(doc, "_room", None)
@@ -101,7 +101,7 @@ async def redis_pubsub_listener(doc: Doc, redis: aioredis.Redis, doc_id: str):
                                             room.awareness.apply_awareness_update(
                                                 read_message(raw_msg[1:]), room
                                             )
-                                            for client in room.clients:
+                                            for client in list(room.clients):
                                                 room._task_group.start_soon(client.send, raw_msg)
             finally:
                 with suppress(Exception):
@@ -269,7 +269,7 @@ async def _patched_serve(self, channel):
                         # state exchanges; it propagates through _broadcast_updates.
                         sync_subtype = message[1] if len(message) > 1 else None
                         if sync_subtype == YSyncMessageType.SYNC_UPDATE:
-                            for client in self.clients:
+                            for client in list(self.clients):
                                 if client is not channel:
                                     tg.start_soon(client.send, message)
                         if sync_subtype in (
@@ -283,7 +283,7 @@ async def _patched_serve(self, channel):
                                 tg.start_soon(_REDIS_CLIENT.publish, pubsub_key, pub_data)
                     elif message_type == YMessageType.AWARENESS:
                         disconnection = is_awareness_disconnect_message(message[1:])
-                        for client in self.clients:
+                        for client in list(self.clients):
                             if disconnection and client is channel:
                                 continue
                             tg.start_soon(client.send, message)
