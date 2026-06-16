@@ -263,11 +263,8 @@ async def _patched_serve(self, channel):
                         reply = handle_sync_message(message[1:], self.ydoc)
                         if reply is not None:
                             tg.start_soon(channel.send, reply)
-                        # Sync across local clients
-                        for client in self.clients:
-                            if client is not channel:
-                                tg.start_soon(client.send, message)
-                        # Sync across other server instances using Redis Pub/Sub
+                        # Broadcasting is handled by _broadcast_updates via ydoc.observe.
+                        # Only handle Redis Pub/Sub for cross-instance sync here.
                         sync_subtype = message[1] if len(message) > 1 else None
                         if sync_subtype in (
                             YSyncMessageType.SYNC_STEP2,
