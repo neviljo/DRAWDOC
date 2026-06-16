@@ -20,7 +20,7 @@ logger = logging.getLogger("drawdoc-ws")
 
 REDIS_URL = os.getenv("WS_REDIS_URL", "redis://localhost:6379")
 DATABASE_URL = os.getenv("WS_DATABASE_URL") or os.getenv("DATABASE_URL", "")
-SNAPSHOT_INTERVAL = int(os.getenv("WS_SNAPSHOT_INTERVAL", "30"))
+SNAPSHOT_INTERVAL = int(os.getenv("WS_SNAPSHOT_INTERVAL", "3"))
 HOST = os.getenv("WS_HOST", "0.0.0.0")
 PORT = int(os.getenv("WS_PORT") or os.getenv("PORT") or "1234")
 
@@ -132,6 +132,33 @@ async def doc_provider(doc: Doc, redis: aioredis.Redis, pg: asyncpg.Pool | None,
             doc["excalidraw"] = Map()
             logger.info("Created new doc for %s", doc_id)
 
+    # Debounced save to Redis on every ydoc change (2s after last change).
+    # This ensures the latest state survives server crashes/OOM kills.
+    _save_debouncer: asyncio.Task | None = None
+
+    async def _do_debounced_save():
+        nonlocal _save_debouncer
+        task = asyncio.current_task()
+        await asyncio.sleep(2)
+        try:
+            update = doc.get_update()
+            ub = bytes(update)
+            await redis.set(redis_key, ub)
+            await save_to_pg(pg, doc_id, ub)
+        except Exception as exc:
+            logger.warning("Debounced save failed for %s: %s", doc_id, exc)
+        finally:
+            if _save_debouncer is task:
+                _save_debouncer = None
+
+    def _on_ydoc_change(event):
+        nonlocal _save_debouncer
+        if _save_debouncer is not None:
+            _save_debouncer.cancel()
+        _save_debouncer = asyncio.create_task(_do_debounced_save())
+
+    observer_sub = doc.observe(_on_ydoc_change)
+
     # Start the pubsub listener task for horizontal scaling sync
     pubsub_task = asyncio.create_task(redis_pubsub_listener(doc, redis, doc_id))
 
@@ -142,6 +169,9 @@ async def doc_provider(doc: Doc, redis: aioredis.Redis, pg: asyncpg.Pool | None,
     try:
         yield
     finally:
+        doc.unobserve(observer_sub)
+        if _save_debouncer is not None:
+            _save_debouncer.cancel()
         # Stop the pubsub listener task
         pubsub_task.cancel()
         with suppress(asyncio.CancelledError):
