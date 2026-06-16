@@ -111,7 +111,7 @@ async def redis_pubsub_listener(doc: Doc, redis: aioredis.Redis, doc_id: str):
             break
         except Exception as e:
             logger.warning("Redis Pub/Sub listener error, reconnecting in 2s: %s", e)
-            await asyncio.sleep(2)
+            await asyncio.sleep(0.5)
 
 
 @asynccontextmanager
@@ -196,8 +196,8 @@ async def main():
             host=HOST,
             port=PORT,
             log_level="info",
-            ws_ping_interval=20,
-            ws_ping_timeout=10,
+            ws_ping_interval=5,
+            ws_ping_timeout=3,
         )
         server = uvicorn.Server(config)
         logger.info("WS server starting on %s:%s", HOST, PORT)

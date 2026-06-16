@@ -27,7 +27,7 @@ export function useYjs(docId: string | undefined) {
     const token = sessionStorage.getItem("access_token") || "";
     const provider = new WebsocketProvider(WS_URL, docId, doc, {
       params: { token },
-      maxBackoffTime: 1000,
+      maxBackoffTime: 250,
     });
     providerRef.current = provider;
 
@@ -49,11 +49,8 @@ export function useYjs(docId: string | undefined) {
       avatarUrl: user?.avatar_url || null,
     });
 
-    // Periodic heartbeat to keep WebSocket alive through Render's proxy
-    // y-websocket forces reconnect after 30s of no received messages.
-    // The awareness ping is echoed back by the server, resetting
-    // wsLastMessageReceived. Also proactively reset the timestamp on the
-    // provider (not ws — wsLastMessageReceived lives on the provider).
+    // Keep connection alive by resetting wsLastMessageReceived every 4s
+    // (y-websocket drops after 30s of no received messages).
     const keepalive = setInterval(() => {
       provider.awareness.setLocalStateField("_ping", Date.now());
       try {
@@ -61,7 +58,7 @@ export function useYjs(docId: string | undefined) {
           (provider as any).wsLastMessageReceived = Date.now();
         }
       } catch { /* provider may be destroyed */ }
-    }, 20000);
+    }, 4000);
 
     console.log("[useYjs effect] END refs set docId:", docId);
 
